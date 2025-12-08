@@ -45,22 +45,25 @@
         <h2>Teraz si otoč telefón! 💕</h2>
         <button id="rotationInstructionButton">Mám!! 😘</button>
       </div>
-      <video id="rewardVideo" class="reward-video hidden" controls>
+      <video id="rewardVideo" class="reward-video hidden" controls muted>
         <source src="reward.mp4" type="video/mp4" />
         Your browser does not support the video tag.
       </video>
     </div>
     <script src="game.js"></script>
-    <iframe
-      data-testid="embed-iframe"
-      style="border-radius: 12px"
-      src="https://open.spotify.com/embed/track/6rqn19AqjcM5wgI1hCYciJ?utm_source=generator"
-      width="0"
-      height="0"
-      frameborder="0"
-      allowfullscreen=""
-      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-      loading="lazy"
-    ></iframe>
+    <audio id="bgm" autoplay loop>
+      <source
+        src="https://pixabay.com/music/download/id-440431.mp3"
+        type="audio/mpeg"
+      />
+    </audio>
+    <script>
+      // Browsers often block autoplay with sound
+      // This ensures it starts on the user's first click or tap
+      document.addEventListener("click", function () {
+        const a = document.getElementById("bgm");
+        if (a.paused) a.play();
+      });
+    </script>
   </body>
 </html>
