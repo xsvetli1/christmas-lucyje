@@ -4,6 +4,12 @@
   box-sizing: border-box;
 }
 
+html {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
 body {
   font-family: "Arial", sans-serif;
   background: linear-gradient(180deg, #87ceeb 0%, #e0f6ff 100%);
@@ -16,6 +22,22 @@ body {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+}
+
+/* Force landscape orientation on mobile devices */
+body.force-landscape {
+  transform: rotate(90deg);
+  transform-origin: center center;
+  width: 100vh;
+  height: 100vw;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  margin-left: -50vh;
+  margin-top: -50vw;
 }
 
 .menu-screen {
@@ -263,9 +285,18 @@ body {
   width: 100vw;
   height: 100vh;
   object-fit: cover;
-  transform: rotate(90deg);
   z-index: 200;
   background: #000;
+}
+
+/* Adjust video when body is rotated for landscape */
+body.force-landscape .reward-video {
+  width: 100vh;
+  height: 100vw;
+  top: 50%;
+  left: 50%;
+  margin-left: -50vh;
+  margin-top: -50vw;
 }
 
 .reward-video.hidden {
