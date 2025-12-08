@@ -10,26 +10,6 @@ const menuScreen = document.getElementById("menuScreen");
 const startGameButton = document.getElementById("startGameButton");
 const gameContainer = document.querySelector(".game-container");
 
-// Force landscape orientation on mobile devices
-function checkOrientation() {
-  const isPortrait = window.innerHeight > window.innerWidth;
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-  if (isMobile && isPortrait) {
-    document.body.classList.add("force-landscape");
-  } else {
-    document.body.classList.remove("force-landscape");
-  }
-
-  // Resize canvas after orientation change
-  setTimeout(() => {
-    resizeCanvas();
-    if (gameState.running) {
-      initSnowflakes();
-    }
-  }, 100);
-}
-
 // Set canvas size
 function resizeCanvas() {
   if (canvas && canvas.offsetWidth > 0 && canvas.offsetHeight > 0) {
@@ -42,30 +22,16 @@ function resizeCanvas() {
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => {
     resizeCanvas();
-    checkOrientation();
   });
 } else {
   resizeCanvas();
-  checkOrientation();
 }
 
-// Listen for orientation and resize changes
 window.addEventListener("resize", () => {
-  checkOrientation();
   resizeCanvas();
   if (gameState.running) {
     initSnowflakes(); // Reinitialize snowflakes on resize
   }
-});
-
-window.addEventListener("orientationchange", () => {
-  setTimeout(() => {
-    checkOrientation();
-    resizeCanvas();
-    if (gameState.running) {
-      initSnowflakes();
-    }
-  }, 100);
 });
 
 // Game state
