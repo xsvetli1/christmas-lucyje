@@ -13,26 +13,37 @@
     <div id="menuScreen" class="menu-screen">
       <div class="menu-content">
         <p class="menu-text">
-          Pre získanie odmeny, musíš najprv prejsť skúškou:
+          Pre získanie odmeny musíš najprv prejsť skúškou ❤️
         </p>
         <button id="startGameButton" class="start-game-button">
-          (Spustiť hru ❄️)
+          Idem na to!
+        </button>
+      </div>
+    </div>
+    <div id="rotationWarningScreen" class="menu-screen hidden">
+      <div class="menu-content">
+        <p class="menu-warning">Najprv si povoľ otáčanie obrazovky!</p>
+        <button id="rotationConfirmButton" class="start-game-button">
+          Mám!! 🥰
         </button>
       </div>
     </div>
     <div class="game-container hidden">
       <div class="game-info">
         <div class="score">Prekážky: <span id="obstacleCount">0</span>/1</div>
-        <div class="instructions">Kliknutím skočíš 💋</div>
       </div>
       <canvas id="gameCanvas"></canvas>
       <div id="gameOver" class="game-over hidden">
-        <h2>Dokončili ste hru, gratulujeme!</h2>
-        <button onclick="restartGame()">Hrať znova</button>
+        <h2>Dokončili ste hru, gratulujeme! 🎉💕</h2>
+        <button onclick="restartGame()">Hrať znova ❤️</button>
       </div>
       <div id="rewardScreen" class="reward-screen hidden">
-        <h2>V poriadku, dokázala si to a prešla si skúšku! ⛄</h2>
-        <button id="rewardButton">Vyzdvihnúť si odmenu 🎁🎄</button>
+        <h2>V poriadku, dokázala si to a prešla si skúšku! ⛄💖🥰</h2>
+        <button id="rewardButton">Vyzdvihnúť si odmenu 🎁🎄💝</button>
+      </div>
+      <div id="rotationInstructionScreen" class="reward-screen hidden">
+        <h2>Teraz si otoč telefón! 💕</h2>
+        <button id="rotationInstructionButton">Mám!! 😘</button>
       </div>
       <video id="rewardVideo" class="reward-video hidden" controls>
         <source src="reward.mp4" type="video/mp4" />

@@ -4,8 +4,15 @@ const obstacleCountElement = document.getElementById("obstacleCount");
 const gameOverElement = document.getElementById("gameOver");
 const rewardScreenElement = document.getElementById("rewardScreen");
 const rewardButton = document.getElementById("rewardButton");
+const rotationInstructionScreen = document.getElementById(
+  "rotationInstructionScreen"
+);
+const rotationInstructionButton = document.getElementById(
+  "rotationInstructionButton"
+);
 const rewardVideo = document.getElementById("rewardVideo");
-const instructionsElement = document.querySelector(".instructions");
+const rotationWarningScreen = document.getElementById("rotationWarningScreen");
+const rotationConfirmButton = document.getElementById("rotationConfirmButton");
 const menuScreen = document.getElementById("menuScreen");
 const startGameButton = document.getElementById("startGameButton");
 const gameContainer = document.querySelector(".game-container");
@@ -43,6 +50,15 @@ let gameState = {
   gameOverMessage: null,
   rewardScreenShown: false,
   health: 3, // 3 lives
+};
+
+// Start message state
+let startMessageState = {
+  show: false,
+  startTime: 0,
+  fadeStartTime: 0,
+  duration: 1500, // Show for 1.5 seconds
+  fadeDuration: 500, // Fade out over 0.5 seconds
 };
 
 // Game over messages (random selection)
@@ -600,8 +616,8 @@ function drawFinishLine() {
 function drawHearts() {
   const heartSize = 30;
   const spacing = 10;
-  const startX = canvas.width - (heartSize * 3 + spacing * 2) - 20; // Lower right corner with padding
-  const startY = canvas.height - heartSize - 20; // Lower right corner with padding
+  const startX = canvas.width - (heartSize * 3 + spacing * 2) - 20; // Upper right corner with padding
+  const startY = 20; // Upper right corner with padding
 
   for (let i = 0; i < 3; i++) {
     const x = startX + i * (heartSize + spacing);
@@ -822,6 +838,46 @@ function gameLoop() {
         );
       }
     }
+
+    // Draw start message on canvas if needed
+    if (startMessageState.show) {
+      const currentTime = Date.now();
+      const elapsed = currentTime - startMessageState.startTime;
+
+      // Calculate opacity
+      let opacity = 1.0;
+      if (currentTime >= startMessageState.fadeStartTime) {
+        const fadeElapsed = currentTime - startMessageState.fadeStartTime;
+        opacity = Math.max(
+          0,
+          1.0 - fadeElapsed / startMessageState.fadeDuration
+        );
+      }
+
+      // Hide message after fade completes
+      if (opacity <= 0) {
+        startMessageState.show = false;
+      } else {
+        // Draw the message
+        ctx.save();
+        ctx.globalAlpha = opacity;
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "bold 48px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        // Add text shadow effect
+        ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 3;
+        ctx.shadowOffsetY = 3;
+        ctx.fillText(
+          "Kliknutím skočíš 💋",
+          canvas.width / 2,
+          canvas.height / 2
+        );
+        ctx.restore();
+      }
+    }
   }
 
   // Always continue the loop (even when game is not running)
@@ -849,6 +905,7 @@ function restartGame() {
   obstacleCountElement.textContent = "0";
   gameOverElement.classList.add("hidden");
   rewardScreenElement.classList.add("hidden");
+  rotationInstructionScreen.classList.add("hidden");
   rewardVideo.classList.add("hidden");
   rewardVideo.pause();
   rewardVideo.currentTime = 0;
@@ -872,8 +929,14 @@ canvas.addEventListener("touchstart", (e) => {
 });
 
 // Reward button click handler
-rewardButton.addEventListener("click", async () => {
+rewardButton.addEventListener("click", () => {
   rewardScreenElement.classList.add("hidden");
+  rotationInstructionScreen.classList.remove("hidden");
+});
+
+// Rotation instruction button click handler
+rotationInstructionButton.addEventListener("click", async () => {
+  rotationInstructionScreen.classList.add("hidden");
   rewardVideo.classList.remove("hidden");
 
   // Request fullscreen
@@ -916,26 +979,17 @@ rewardVideo.addEventListener("ended", () => {
 
 // Function to show start message animation
 function showStartMessage() {
-  if (instructionsElement) {
-    // Remove any existing classes first
-    instructionsElement.classList.remove("start-message", "fade-out");
-    // Force reflow to ensure the removal is processed
-    void instructionsElement.offsetWidth;
-    // Add start message class
-    instructionsElement.classList.add("start-message");
-    setTimeout(() => {
-      instructionsElement.classList.add("fade-out");
-      setTimeout(() => {
-        instructionsElement.classList.remove("start-message", "fade-out");
-      }, 500); // Remove classes after fade animation completes
-    }, 1500); // Start fade after 1.5 seconds
-  }
+  startMessageState.show = true;
+  startMessageState.startTime = Date.now();
+  startMessageState.fadeStartTime =
+    startMessageState.startTime + startMessageState.duration;
 }
 
 // Function to start the game
 function startGame() {
-  // Hide menu and show game container
+  // Hide menu and rotation warning, then show game container
   menuScreen.classList.add("hidden");
+  rotationWarningScreen.classList.add("hidden");
   gameContainer.classList.remove("hidden");
 
   // Resize canvas now that it's visible
@@ -957,8 +1011,14 @@ function startGame() {
 // Track if game loop is running
 let gameLoopRunning = false;
 
-// Start game button click handler
-startGameButton.addEventListener("click", startGame);
+// Start game button click handler (shows rotation warning first)
+startGameButton.addEventListener("click", () => {
+  menuScreen.classList.add("hidden");
+  rotationWarningScreen.classList.remove("hidden");
+});
+
+// Rotation confirmation button click handler (starts the game)
+rotationConfirmButton.addEventListener("click", startGame);
 
 // Initialize and start game loop (but game won't run until button is clicked)
 gameLoop();
