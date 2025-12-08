@@ -173,7 +173,7 @@ const finishLine = {
 };
 
 // Game settings
-const OBSTACLE_COUNT = 1;
+const OBSTACLE_COUNT = 20;
 const OBSTACLE_SPACING = 400;
 const SCROLL_SPEED = 3;
 let gameScroll = 0;
@@ -814,7 +814,7 @@ function gameLoop() {
       drawPlayer();
       drawHearts();
 
-      if (!gameState.finishLineReached) {
+      if (!gameState.finishLineReached && !gameState.rewardScreenShown) {
         // Game over (collision)
         ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -916,13 +916,21 @@ function restartGame() {
 
 // Allow restart on click/tap after game over
 canvas.addEventListener("click", () => {
-  if (!gameState.running && !gameState.finishLineReached) {
+  if (
+    !gameState.running &&
+    !gameState.finishLineReached &&
+    !gameState.rewardScreenShown
+  ) {
     restartGame();
   }
 });
 
 canvas.addEventListener("touchstart", (e) => {
-  if (!gameState.running && !gameState.finishLineReached) {
+  if (
+    !gameState.running &&
+    !gameState.finishLineReached &&
+    !gameState.rewardScreenShown
+  ) {
     e.preventDefault();
     restartGame();
   }
