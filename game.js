@@ -16,6 +16,7 @@ const rotationConfirmButton = document.getElementById("rotationConfirmButton");
 const menuScreen = document.getElementById("menuScreen");
 const startGameButton = document.getElementById("startGameButton");
 const gameContainer = document.querySelector(".game-container");
+const sneakPeekImage = document.querySelector(".sneak-peek-image");
 
 // Set canvas size
 function resizeCanvas() {
@@ -999,6 +1000,10 @@ function startGame() {
   menuScreen.classList.add("hidden");
   rotationWarningScreen.classList.add("hidden");
   gameContainer.classList.remove("hidden");
+  // Hide the sneak-peek image when game starts
+  if (sneakPeekImage) {
+    sneakPeekImage.style.display = "none";
+  }
 
   // Resize canvas now that it's visible
   setTimeout(() => {
