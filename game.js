@@ -155,12 +155,19 @@ backgroundImage.onload = () => {
 // Obstacle images
 const obstacleImages = [];
 const obstacleImageFiles = [
-  "obstacles/iphone.png",
-  "obstacles/ja_shelby.png",
-  "obstacles/ja.png",
-  "obstacles/three-trees.png",
   "obstacles/tree.png",
+  "obstacles/ja_shelby.png",
+  "obstacles/three-trees.png",
+  "obstacles/iphone.png",
+  "obstacles/julca.png",
+  "obstacles/ja.png",
+  "obstacles/luna.png",
+  "obstacles/ja_mikulov.png",
+  "obstacles/sasa.png",
   "obstacles/tree2.png",
+  "obstacles/lieky.png",
+  "obstacles/lucka_kucharka.png",
+  "obstacles/sestry.png",
 ];
 
 // Load all obstacle images
@@ -172,7 +179,7 @@ obstacleImageFiles.forEach((src) => {
 
 // Lift car image
 const liftCarImage = new Image();
-liftCarImage.src = "obstacles/cabin4.png";
+liftCarImage.src = "obstacles/cabin.png";
 
 // Function to calculate ground Y at a given X position
 function getGroundY(x) {
@@ -191,8 +198,8 @@ const liftCars = [];
 // Setting lift car bottom at ground - 45 (midway between -70 and -19)
 // If lift car height is 100, then lift car top is at ground - 145
 // So cable should be at ground - 145 (lift car hangs from cable)
-const LIFT_CABLE_HEIGHT = 175; // Height above ground where cable runs (increased by 10px)
-const LIFT_CAR_HEIGHT = 100; // Height of lift car hanging from cable
+const LIFT_CABLE_HEIGHT = 275; // Height above ground where cable runs (shifted up by 100px to accommodate 2x larger car)
+const LIFT_CAR_HEIGHT = 200; // Height of lift car hanging from cable (2x larger)
 const finishLine = {
   x: null,
   y: 0,
@@ -202,8 +209,68 @@ const finishLine = {
 };
 
 // Game settings
-const OBSTACLE_COUNT = 20;
-const OBSTACLE_SPACING = 400;
+// Fixed sequence: 12 obstacles (each used once) + 12 cablecars = 24 total
+// Pattern: O=obstacle, C=cablecar
+// Sequence: O, O, C, C, O, C, O, O, C, O, C, C, O, C, O, C, O, C, C, O, C, O, C, O
+const OBSTACLE_SEQUENCE = [
+  "obstacle",
+  "obstacle",
+  "cablecar",
+  "cablecar",
+  "obstacle",
+  "cablecar",
+  "obstacle",
+  "obstacle",
+  "cablecar",
+  "obstacle",
+  "cablecar",
+  "obstacle",
+  "cablecar",
+  "obstacle",
+  "cablecar",
+  "obstacle",
+  "cablecar",
+  "obstacle",
+  "obstacle",
+  "cablecar",
+  "cablecar",
+  "obstacle",
+  "cablecar",
+  "cablecar",
+  "obstacle",
+];
+const TOTAL_ITEMS = OBSTACLE_SEQUENCE.length; // 25 items total
+
+// Individual spacing after each obstacle/cablecar (distance to next item)
+// Each value corresponds to the spacing after the item at that index
+// Default: 400 for all (current default spacing)
+const OBSTACLE_SPACINGS = [
+  400, // spacing after obstacle 0
+  400, // spacing after obstacle 1
+  400, // spacing after cablecar 2
+  400, // spacing after cablecar 3
+  400, // spacing after obstacle 4
+  400, // spacing after cablecar 5
+  400, // spacing after obstacle 6
+  400, // spacing after obstacle 7
+  400, // spacing after cablecar 8
+  400, // spacing after obstacle 9
+  400, // spacing after cablecar 10
+  400, // spacing after obstacle 11
+  400, // spacing after cablecar 12
+  250, // spacing after obstacle 13
+  300, // spacing after cablecar 14
+  400, // spacing after obstacle 15
+  250, // spacing after cablecar 16
+  50, // spacing after obstacle 17
+  400, // spacing after obstacle 18
+  300, // spacing after cablecar 19
+  250, // spacing after cablecar 20
+  300, // spacing after obstacle 21
+  150, // spacing after cablecar 22
+  400, // spacing after cablecar 23
+  400, // spacing after obstacle 24 (last item, spacing to finish line)
+];
 const SCROLL_SPEED = 3;
 let gameScroll = 0;
 const BACKGROUND_SCROLL_SPEED = 0.27; // Background moves slower than obstacles for parallax effect (reduced for longer game)
@@ -264,27 +331,27 @@ function updateSnowflakes() {
 // This must be called before initObstacles() to prevent overlap
 function initLiftCars() {
   liftCars.length = 0;
-  // Place lift cars randomly, replacing some ground obstacles
-  // Probability of placing a lift car instead of a ground obstacle
-  const LIFT_CAR_PROBABILITY = 0.3; // 30% chance
 
-  for (let i = 0; i < OBSTACLE_COUNT; i++) {
-    // Randomly decide if we should place a lift car here
-    if (Math.random() < LIFT_CAR_PROBABILITY) {
-      const liftCarX = 1500 + i * OBSTACLE_SPACING;
+  // Place lift cars according to the fixed sequence
+  let currentX = 1500; // Starting X position
+  for (let i = 0; i < TOTAL_ITEMS; i++) {
+    if (OBSTACLE_SEQUENCE[i] === "cablecar") {
       // Calculate Y position on the cable (cable follows slope angle)
-      const groundY = getGroundY(liftCarX);
+      const groundY = getGroundY(currentX);
       const cableY = groundY - LIFT_CABLE_HEIGHT;
 
       liftCars.push({
-        x: liftCarX,
+        x: currentX,
         y: cableY + 10, // Top of lift car (hangs from cable at cableY, positioned 10px lower)
-        width: 80, // Width of lift car
+        width: 160, // Width of lift car (2x larger)
         height: LIFT_CAR_HEIGHT, // Height of lift car (hangs down from cable)
         passed: false,
         hit: false, // Track if this lift car has already caused damage
       });
     }
+
+    // Move to next position: add spacing after current item
+    currentX += OBSTACLE_SPACINGS[i];
   }
 }
 
@@ -299,33 +366,43 @@ function initObstacles() {
     liftCarPositions.add(liftCar.x);
   });
 
-  for (let i = 0; i < OBSTACLE_COUNT; i++) {
-    const obstacleX = 1500 + i * OBSTACLE_SPACING;
+  // Use each obstacle image exactly once, in order
+  let obstacleImageIndex = 0; // Index to track which obstacle image to use next
 
-    // Skip this position if a lift car exists here
-    if (liftCarPositions.has(obstacleX)) {
-      continue;
+  let currentX = 1500; // Starting X position (same as lift cars)
+  for (let i = 0; i < TOTAL_ITEMS; i++) {
+    if (OBSTACLE_SEQUENCE[i] === "obstacle") {
+      // Skip this position if a lift car exists here (shouldn't happen, but safety check)
+      if (liftCarPositions.has(currentX)) {
+        // Still need to advance position even if we skip
+        currentX += OBSTACLE_SPACINGS[i];
+        continue;
+      }
+
+      // Use each obstacle image exactly once, in order
+      const selectedImageIndex = obstacleImageIndex % obstacleImages.length;
+      const selectedImage = obstacleImages[selectedImageIndex];
+      obstacleImageIndex++;
+
+      obstacles.push({
+        x: currentX,
+        y: getGroundY(currentX) - 116, // Position on slope (bottom edge on ground, adjusted upward to keep bottom fixed)
+        width: 78, // 130% of previous size (was 60)
+        height: 156, // 130% of previous size (was 120)
+        passed: false,
+        hit: false, // Track if this obstacle has already caused damage
+        image: selectedImage, // Store reference to the image
+        imageIndex: selectedImageIndex, // Store index for reference
+      });
     }
 
-    // Randomly select an obstacle image
-    const randomImageIndex = Math.floor(Math.random() * obstacleImages.length);
-    const selectedImage = obstacleImages[randomImageIndex];
-
-    obstacles.push({
-      x: obstacleX,
-      y: getGroundY(obstacleX) - 80, // Position on slope (bottom edge on ground)
-      width: 60, // 2x larger (was 30)
-      height: 120, // 2x larger (was 60)
-      passed: false,
-      hit: false, // Track if this obstacle has already caused damage
-      image: selectedImage, // Store reference to the image
-      imageIndex: randomImageIndex, // Store index for reference
-    });
+    // Move to next position: add spacing after current item
+    currentX += OBSTACLE_SPACINGS[i];
   }
-  // Set finish line after last obstacle
-  // Use the last possible position (after all obstacles and lift cars)
-  const lastPosition = 1500 + (OBSTACLE_COUNT - 1) * OBSTACLE_SPACING;
-  finishLine.x = lastPosition + OBSTACLE_SPACING;
+
+  // Set finish line after last obstacle/cablecar
+  // Finish line is positioned after the last item's spacing
+  finishLine.x = currentX;
   finishLine.passed = false;
 }
 
@@ -604,7 +681,7 @@ function updateObstacles() {
     obstacle.x -= SCROLL_SPEED;
 
     // Update obstacle Y position to follow the slope
-    obstacle.y = getGroundY(obstacle.x) - 80; // Bottom edge on ground
+    obstacle.y = getGroundY(obstacle.x) - 116; // Bottom edge on ground (adjusted upward to keep bottom fixed)
 
     // Check collision with less strict detection when approaching from right
     if (!obstacle.passed) {
@@ -914,7 +991,7 @@ function drawPlayer() {
 function drawLiftCable() {
   // Draw cable line that follows the slope angle
   ctx.strokeStyle = "#808080"; // Gray color for cable
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 5;
   ctx.beginPath();
 
   // Calculate cable Y positions at left and right edges of visible area
