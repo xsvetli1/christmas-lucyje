@@ -581,6 +581,22 @@ function updateObstacles() {
     // Mark as passed
     if (!liftCar.passed && liftCar.x + liftCar.width < player.x) {
       liftCar.passed = true;
+      gameState.obstaclesPassed++;
+      obstacleCountElement.textContent = gameState.obstaclesPassed;
+
+      // Check if all obstacles are passed
+      const totalObstacles = obstacles.length + liftCars.length;
+      if (
+        gameState.obstaclesPassed === totalObstacles &&
+        !gameState.rewardScreenShown
+      ) {
+        gameState.rewardScreenShown = true;
+        gameState.running = false;
+        // Show reward screen after 1 second timeout
+        setTimeout(() => {
+          rewardScreenElement.classList.remove("hidden");
+        }, 1000);
+      }
     }
   });
 
@@ -689,8 +705,9 @@ function updateObstacles() {
       obstacleCountElement.textContent = gameState.obstaclesPassed;
 
       // Check if all obstacles are passed
+      const totalObstacles = obstacles.length + liftCars.length;
       if (
-        gameState.obstaclesPassed === OBSTACLE_COUNT &&
+        gameState.obstaclesPassed === totalObstacles &&
         !gameState.rewardScreenShown
       ) {
         gameState.rewardScreenShown = true;
