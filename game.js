@@ -114,7 +114,7 @@ playerScreamingImage.src = "lucka_on_sb_screaming.png";
 
 // Background image
 const backgroundImage = new Image();
-backgroundImage.src = "tatry3.jpg";
+backgroundImage.src = "strbske2.jpeg";
 
 // Track when images are loaded
 playerImage.onload = () => {
@@ -273,8 +273,8 @@ const OBSTACLE_SPACINGS = [
 ];
 const SCROLL_SPEED = 3;
 let gameScroll = 0;
-const BACKGROUND_SCROLL_SPEED = 0.27; // Background moves slower than obstacles for parallax effect (reduced for longer game)
-const BACKGROUND_SCROLL_SPEED_Y = 0.135; // Vertical scroll speed (downward) (reduced for longer game)
+const BACKGROUND_SCROLL_SPEED = 0.25; // Background moves slower than obstacles for parallax effect (reduced for longer game)
+const BACKGROUND_SCROLL_SPEED_Y = 0.122; // Vertical scroll speed (downward) (reduced for longer game)
 const BACKGROUND_ZOOM = 1.3; // Zoom factor (1.3 = 30% zoom in)
 let backgroundScroll = 0;
 let backgroundScrollY = 0;
