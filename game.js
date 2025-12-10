@@ -58,7 +58,7 @@ let startMessageState = {
   show: false,
   startTime: 0,
   fadeStartTime: 0,
-  duration: 1500, // Show for 1.5 seconds
+  duration: 2500, // Show for 2.5 seconds
   fadeDuration: 500, // Fade out over 0.5 seconds
 };
 
@@ -80,8 +80,11 @@ const player = {
   y: 500,
   width: 120,
   height: 150,
+  normalHeight: 150, // Normal standing height
+  crouchHeight: 99, // Crouched height (60% of normal)
   velocityY: 0,
   isJumping: false,
+  isCrouching: false,
   groundY: 300,
   jumpPower: -10,
   gravity: 0.2,
@@ -98,13 +101,15 @@ const player = {
 // Character images
 const playerImage = new Image();
 const playerJumpImage = new Image();
+const playerCrouchImage = new Image();
 const playerScreamingImage = new Image();
 let imagesLoaded = 0;
-const totalImages = 4; // Updated to include background image and screaming image
+const totalImages = 5; // Updated to include background image, screaming image, and crouch image
 
 // Load character images
 playerImage.src = "lucka_on_snowboard.png";
 playerJumpImage.src = "lucka_jump.png";
+playerCrouchImage.src = "lucka_crouch.png";
 playerScreamingImage.src = "lucka_on_sb_screaming.png";
 
 // Background image
@@ -120,6 +125,13 @@ playerImage.onload = () => {
 };
 
 playerJumpImage.onload = () => {
+  imagesLoaded++;
+  if (imagesLoaded === totalImages) {
+    console.log("All character images loaded");
+  }
+};
+
+playerCrouchImage.onload = () => {
   imagesLoaded++;
   if (imagesLoaded === totalImages) {
     console.log("All character images loaded");
@@ -158,6 +170,10 @@ obstacleImageFiles.forEach((src) => {
   obstacleImages.push(img);
 });
 
+// Lift car image
+const liftCarImage = new Image();
+liftCarImage.src = "obstacles/cabin4.png";
+
 // Function to calculate ground Y at a given X position
 function getGroundY(x) {
   return SLOPE_START_Y + x * SLOPE_ANGLE;
@@ -165,6 +181,18 @@ function getGroundY(x) {
 
 // Obstacles array
 const obstacles = [];
+// Lift cars array (ski lift obstacles)
+const liftCars = [];
+// Lift cable height above ground (in pixels)
+// Positioned so standing player collides, but crouching doesn't
+// Player top when standing: ground - 150 + 80 = ground - 70
+// Player top when crouching: ground - 99 + 80 = ground - 19
+// Lift car bottom should be between ground - 70 and ground - 19
+// Setting lift car bottom at ground - 45 (midway between -70 and -19)
+// If lift car height is 100, then lift car top is at ground - 145
+// So cable should be at ground - 145 (lift car hangs from cable)
+const LIFT_CABLE_HEIGHT = 175; // Height above ground where cable runs (increased by 10px)
+const LIFT_CAR_HEIGHT = 100; // Height of lift car hanging from cable
 const finishLine = {
   x: null,
   y: 0,
@@ -232,11 +260,53 @@ function updateSnowflakes() {
   });
 }
 
+// Initialize lift cars on the cable
+// This must be called before initObstacles() to prevent overlap
+function initLiftCars() {
+  liftCars.length = 0;
+  // Place lift cars randomly, replacing some ground obstacles
+  // Probability of placing a lift car instead of a ground obstacle
+  const LIFT_CAR_PROBABILITY = 0.3; // 30% chance
+
+  for (let i = 0; i < OBSTACLE_COUNT; i++) {
+    // Randomly decide if we should place a lift car here
+    if (Math.random() < LIFT_CAR_PROBABILITY) {
+      const liftCarX = 1500 + i * OBSTACLE_SPACING;
+      // Calculate Y position on the cable (cable follows slope angle)
+      const groundY = getGroundY(liftCarX);
+      const cableY = groundY - LIFT_CABLE_HEIGHT;
+
+      liftCars.push({
+        x: liftCarX,
+        y: cableY + 10, // Top of lift car (hangs from cable at cableY, positioned 10px lower)
+        width: 80, // Width of lift car
+        height: LIFT_CAR_HEIGHT, // Height of lift car (hangs down from cable)
+        passed: false,
+        hit: false, // Track if this lift car has already caused damage
+      });
+    }
+  }
+}
+
 // Initialize obstacles
+// This must be called after initLiftCars() to prevent overlap
 function initObstacles() {
   obstacles.length = 0;
+
+  // Create a Set of X positions that have lift cars to avoid overlap
+  const liftCarPositions = new Set();
+  liftCars.forEach((liftCar) => {
+    liftCarPositions.add(liftCar.x);
+  });
+
   for (let i = 0; i < OBSTACLE_COUNT; i++) {
     const obstacleX = 1500 + i * OBSTACLE_SPACING;
+
+    // Skip this position if a lift car exists here
+    if (liftCarPositions.has(obstacleX)) {
+      continue;
+    }
+
     // Randomly select an obstacle image
     const randomImageIndex = Math.floor(Math.random() * obstacleImages.length);
     const selectedImage = obstacleImages[randomImageIndex];
@@ -253,7 +323,9 @@ function initObstacles() {
     });
   }
   // Set finish line after last obstacle
-  finishLine.x = obstacles[OBSTACLE_COUNT - 1].x + OBSTACLE_SPACING;
+  // Use the last possible position (after all obstacles and lift cars)
+  const lastPosition = 1500 + (OBSTACLE_COUNT - 1) * OBSTACLE_SPACING;
+  finishLine.x = lastPosition + OBSTACLE_SPACING;
   finishLine.passed = false;
 }
 
@@ -262,14 +334,111 @@ function jump() {
   if (!player.isJumping && gameState.running) {
     player.velocityY = player.jumpPower;
     player.isJumping = true;
+    player.isCrouching = false; // Can't crouch while jumping
   }
 }
 
-// Event listeners for jump
-canvas.addEventListener("click", jump);
+// Crouch function
+function crouch() {
+  if (!player.isJumping && gameState.running) {
+    player.isCrouching = true;
+    player.height = player.crouchHeight;
+  }
+}
+
+// Stop crouching
+function stopCrouch() {
+  if (gameState.running) {
+    player.isCrouching = false;
+    player.height = player.normalHeight;
+  }
+}
+
+// Get touch/click position relative to canvas
+function getCanvasPosition(event) {
+  const rect = canvas.getBoundingClientRect();
+  if (event.touches && event.touches.length > 0) {
+    return {
+      x: event.touches[0].clientX - rect.left,
+      y: event.touches[0].clientY - rect.top,
+    };
+  } else {
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  }
+}
+
+// Track mouse state for crouching
+let isMouseDown = false;
+let mouseDownZone = null; // 'top' or 'bottom'
+
+// Event listeners for jump (top half) and crouch (bottom half)
+canvas.addEventListener("mousedown", (e) => {
+  if (gameState.running) {
+    const pos = getCanvasPosition(e);
+    const midY = canvas.height / 2;
+    isMouseDown = true;
+    if (pos.y < midY) {
+      // Top half - jump
+      mouseDownZone = "top";
+      jump();
+    } else {
+      // Bottom half - crouch
+      mouseDownZone = "bottom";
+      crouch();
+    }
+  }
+});
+
+canvas.addEventListener("mouseup", (e) => {
+  // Stop crouching when mouse is released
+  if (mouseDownZone === "bottom" && player.isCrouching && !player.isJumping) {
+    stopCrouch();
+  }
+  isMouseDown = false;
+  mouseDownZone = null;
+});
+
+canvas.addEventListener("mouseleave", (e) => {
+  // Stop crouching if mouse leaves canvas
+  if (player.isCrouching && !player.isJumping) {
+    stopCrouch();
+  }
+  isMouseDown = false;
+  mouseDownZone = null;
+});
+
 canvas.addEventListener("touchstart", (e) => {
   e.preventDefault();
-  jump();
+  if (gameState.running) {
+    const pos = getCanvasPosition(e);
+    const midY = canvas.height / 2;
+    if (pos.y < midY) {
+      // Top half - jump
+      jump();
+    } else {
+      // Bottom half - crouch
+      crouch();
+    }
+  }
+});
+
+canvas.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  // Stop crouching when touch ends
+  if (player.isCrouching && !player.isJumping) {
+    stopCrouch();
+  }
+});
+
+canvas.addEventListener("touchcancel", (e) => {
+  e.preventDefault();
+  // Stop crouching if touch is cancelled
+  if (player.isCrouching && !player.isJumping) {
+    stopCrouch();
+  }
 });
 
 // Prevent default touch behaviors
@@ -293,6 +462,10 @@ function updatePlayer() {
       player.y = groundYAtPlayer;
       player.velocityY = 0;
       player.isJumping = false;
+      // Reset height after landing if not crouching
+      if (!player.isCrouching) {
+        player.height = player.normalHeight;
+      }
     }
   } else {
     // Keep player on the slope when not jumping
@@ -309,6 +482,107 @@ function updateObstacles() {
     backgroundScroll += BACKGROUND_SCROLL_SPEED;
     backgroundScrollY += BACKGROUND_SCROLL_SPEED_Y;
   }
+
+  // Update lift cars
+  liftCars.forEach((liftCar) => {
+    liftCar.x -= SCROLL_SPEED;
+
+    // Update lift car Y position to follow the cable (which follows the slope)
+    // Cable is at groundY - LIFT_CABLE_HEIGHT, lift car hangs down from there
+    const groundY = getGroundY(liftCar.x);
+    const cableY = groundY - LIFT_CABLE_HEIGHT;
+    liftCar.y = cableY + 10; // Top of lift car (hangs from cable, positioned 10px lower relative to cable)
+
+    // Check collision with lift car (only if player is NOT crouching)
+    if (!liftCar.passed && !player.isCrouching) {
+      // Calculate horizontal overlap
+      const horizontalOverlap = Math.min(
+        player.x + player.width - liftCar.x,
+        liftCar.x + liftCar.width - player.x
+      );
+
+      // Calculate vertical overlap
+      const verticalOverlap = Math.min(
+        player.y + player.height - liftCar.y,
+        liftCar.y + liftCar.height - player.y
+      );
+
+      // Check if there's basic overlap
+      const hasHorizontalOverlap = horizontalOverlap > 0;
+      const hasVerticalOverlap = verticalOverlap > 0;
+
+      if (hasHorizontalOverlap && hasVerticalOverlap) {
+        // Check if approaching from right side
+        const isFromRight = player.x > liftCar.x;
+
+        if (isFromRight) {
+          // Calculate how much the player is shifted to the right
+          const rightShift = player.x - liftCar.x;
+          const maxShift = liftCar.width + player.width;
+          const shiftRatio = Math.min(rightShift / maxShift, 1.0);
+          const tolerance = 1.0 - shiftRatio * 0.9;
+          const minRequiredOverlap =
+            Math.min(player.width, liftCar.width) * tolerance;
+
+          if (
+            horizontalOverlap >= minRequiredOverlap &&
+            verticalOverlap >= 20 &&
+            !liftCar.hit
+          ) {
+            // Collision detected - reduce health
+            liftCar.hit = true;
+            gameState.health--;
+
+            // Trigger hit animation
+            player.hitAnimation.active = true;
+            player.hitAnimation.startTime = Date.now();
+
+            // Only game over if health reaches 0
+            if (gameState.health <= 0) {
+              gameState.running = false;
+              if (!gameState.gameOverMessage) {
+                gameState.gameOverMessage =
+                  gameOverMessages[
+                    Math.floor(Math.random() * gameOverMessages.length)
+                  ];
+              }
+            }
+          }
+        } else {
+          // Approaching from left - use normal collision detection
+          if (
+            horizontalOverlap >= 10 &&
+            verticalOverlap >= 20 &&
+            !liftCar.hit
+          ) {
+            // Collision detected - reduce health
+            liftCar.hit = true;
+            gameState.health--;
+
+            // Trigger hit animation
+            player.hitAnimation.active = true;
+            player.hitAnimation.startTime = Date.now();
+
+            // Only game over if health reaches 0
+            if (gameState.health <= 0) {
+              gameState.running = false;
+              if (!gameState.gameOverMessage) {
+                gameState.gameOverMessage =
+                  gameOverMessages[
+                    Math.floor(Math.random() * gameOverMessages.length)
+                  ];
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Mark as passed
+    if (!liftCar.passed && liftCar.x + liftCar.width < player.x) {
+      liftCar.passed = true;
+    }
+  });
 
   obstacles.forEach((obstacle, index) => {
     obstacle.x -= SCROLL_SPEED;
@@ -442,40 +716,98 @@ function updateObstacles() {
 
 // Draw functions
 function drawSlope() {
-  // Calculate slope endpoints
-  const leftY = getGroundY(0);
-  const rightY = getGroundY(canvas.width);
+  // Pattern width for seamless repetition (make it longer than screen)
+  const patternWidth = canvas.width * 2;
+  const numPoints = 50; // More points for smoother, longer pattern
+  const noiseAmplitude = 6; // Maximum vertical variation in pixels
 
-  // Draw snow slope (tilted)
+  // Generate border Y for a given screen X coordinate
+  // Use modulo on (x + gameScroll) to create seamless repeating pattern that scrolls
+  function getBorderY(screenX) {
+    const baseY = getGroundY(screenX);
+    // Use modulo to create repeating pattern for seamless scrolling
+    // Add gameScroll so the pattern moves as we scroll
+    const patternX = (screenX + gameScroll) % patternWidth;
+    // Add noise using sine waves with different frequencies for organic look
+    const spatialNoise1 = Math.sin(patternX * 0.015) * noiseAmplitude;
+    const spatialNoise2 = Math.sin(patternX * 0.035) * (noiseAmplitude * 0.5);
+    const spatialNoise3 = Math.sin(patternX * 0.065) * (noiseAmplitude * 0.25);
+    const totalNoise = spatialNoise1 + spatialNoise2 + spatialNoise3;
+    return baseY + totalNoise;
+  }
+
+  // Generate points across the visible screen width
+  const points = [];
+  const pointSpacing = canvas.width / numPoints;
+
+  for (let i = -2; i <= numPoints + 2; i++) {
+    const screenX = i * pointSpacing;
+
+    // Only include points that are visible or slightly off-screen
+    if (screenX >= -50 && screenX <= canvas.width + 50) {
+      points.push({
+        screenX: screenX,
+        y: getBorderY(screenX),
+      });
+    }
+  }
+
+  // Draw snow slope with wavy border
   ctx.fillStyle = "#FFFFFF";
   ctx.beginPath();
-  ctx.moveTo(0, leftY);
-  ctx.lineTo(canvas.width, rightY);
+
+  // Draw the border curve
+  if (points.length > 0) {
+    ctx.moveTo(points[0].screenX, points[0].y);
+
+    for (let i = 1; i < points.length; i++) {
+      const prevPoint = points[i - 1];
+      const currentPoint = points[i];
+
+      if (i === 1) {
+        ctx.lineTo(currentPoint.screenX, currentPoint.y);
+      } else {
+        ctx.quadraticCurveTo(
+          prevPoint.screenX,
+          prevPoint.y,
+          currentPoint.screenX,
+          currentPoint.y
+        );
+      }
+    }
+  }
+
+  // Complete the border and close the path
   ctx.lineTo(canvas.width, canvas.height);
   ctx.lineTo(0, canvas.height);
   ctx.closePath();
   ctx.fill();
 
-  // Draw slope line (tilted)
+  // Draw slope border line (wavy, scrolling)
   ctx.strokeStyle = "#E0E0E0";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(0, leftY);
-  ctx.lineTo(canvas.width, rightY);
-  ctx.stroke();
 
-  // Add some texture lines to show the slope better
-  ctx.strokeStyle = "#F0F0F0";
-  ctx.lineWidth = 1;
-  for (let i = 1; i < 5; i++) {
-    const x = (canvas.width / 5) * i;
-    const y1 = getGroundY(x);
-    const y2 = getGroundY(x + 20);
-    ctx.beginPath();
-    ctx.moveTo(x, y1);
-    ctx.lineTo(x + 20, y2);
-    ctx.stroke();
+  if (points.length > 0) {
+    ctx.moveTo(points[0].screenX, points[0].y);
+
+    for (let i = 1; i < points.length; i++) {
+      const prevPoint = points[i - 1];
+      const currentPoint = points[i];
+
+      if (i === 1) {
+        ctx.lineTo(currentPoint.screenX, currentPoint.y);
+      } else {
+        ctx.quadraticCurveTo(
+          prevPoint.screenX,
+          prevPoint.y,
+          currentPoint.screenX,
+          currentPoint.y
+        );
+      }
+    }
   }
+  ctx.stroke();
 }
 
 function drawPlayer() {
@@ -519,18 +851,110 @@ function drawPlayer() {
       player.hitAnimation.active = false;
     }
   } else {
-    // Use the appropriate image based on jump state
-    imageToUse = player.isJumping ? playerJumpImage : playerImage;
+    // Use the appropriate image based on jump and crouch state
+    if (player.isJumping) {
+      imageToUse = playerJumpImage;
+    } else if (player.isCrouching) {
+      imageToUse = playerCrouchImage;
+    } else {
+      imageToUse = playerImage;
+    }
   }
 
   // Only draw if image is loaded
   if (imageToUse.complete && imageToUse.naturalWidth > 0) {
-    ctx.drawImage(imageToUse, drawX, drawY, drawWidth, drawHeight);
+    // When crouching, adjust the draw position to align bottom with ground
+    if (
+      player.isCrouching &&
+      !player.isJumping &&
+      !player.hitAnimation.active
+    ) {
+      // Crouch image is naturally smaller, so align bottom edge with ground
+      // Maintain aspect ratio: crouch image is 708×670, so aspect ratio is 708/670 ≈ 1.057
+      const crouchDrawHeight = player.crouchHeight;
+      const crouchAspectRatio = 708 / 670; // Crouch image aspect ratio
+      const crouchDrawWidth = crouchDrawHeight * crouchAspectRatio;
+      const crouchDrawX = drawX + (drawWidth - crouchDrawWidth) / 2; // Center horizontally
+      const crouchDrawY = drawY + (drawHeight - crouchDrawHeight); // Align bottom
+      ctx.drawImage(
+        imageToUse,
+        crouchDrawX,
+        crouchDrawY,
+        crouchDrawWidth,
+        crouchDrawHeight
+      );
+    } else {
+      ctx.drawImage(imageToUse, drawX, drawY, drawWidth, drawHeight);
+    }
   } else {
     // Fallback: draw a simple rectangle if image not loaded yet
     ctx.fillStyle = player.color;
     ctx.fillRect(drawX, drawY, drawWidth, drawHeight);
   }
+}
+
+// Draw lift cable line
+function drawLiftCable() {
+  // Draw cable line that follows the slope angle
+  ctx.strokeStyle = "#808080"; // Gray color for cable
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+
+  // Calculate cable Y positions at left and right edges of visible area
+  const leftX = Math.max(0, -100); // Start slightly off-screen left
+  const rightX = canvas.width + 100; // Extend slightly off-screen right
+  const leftGroundY = getGroundY(leftX);
+  const rightGroundY = getGroundY(rightX);
+  const leftCableY = leftGroundY - LIFT_CABLE_HEIGHT;
+  const rightCableY = rightGroundY - LIFT_CABLE_HEIGHT;
+
+  ctx.moveTo(leftX, leftCableY);
+  ctx.lineTo(rightX, rightCableY);
+  ctx.stroke();
+}
+
+// Draw lift cars
+function drawLiftCars() {
+  liftCars.forEach((liftCar) => {
+    // Only draw if lift car is visible on screen
+    if (liftCar.x + liftCar.width < 0 || liftCar.x > canvas.width) {
+      return;
+    }
+
+    // Use image if available and loaded, otherwise fallback to simple shape
+    if (
+      liftCarImage &&
+      liftCarImage.complete &&
+      liftCarImage.naturalWidth > 0
+    ) {
+      // Draw the lift car image
+      // Scale the image to fit the lift car dimensions while maintaining aspect ratio
+      const imageAspectRatio =
+        liftCarImage.naturalWidth / liftCarImage.naturalHeight;
+      let drawWidth = liftCar.width;
+      let drawHeight = liftCar.height;
+
+      // Adjust dimensions to maintain aspect ratio
+      if (imageAspectRatio > 1) {
+        // Image is wider than tall
+        drawHeight = drawWidth / imageAspectRatio;
+      } else {
+        // Image is taller than wide
+        drawWidth = drawHeight * imageAspectRatio;
+      }
+
+      // Position lift car hanging from cable
+      // liftCar.y is the top of the lift car
+      const drawX = liftCar.x + (liftCar.width - drawWidth) / 2;
+      const drawY = liftCar.y; // Top of lift car
+
+      ctx.drawImage(liftCarImage, drawX, drawY, drawWidth, drawHeight);
+    } else {
+      // Fallback: draw simple rectangle if image not loaded yet
+      ctx.fillStyle = "#FF6B6B";
+      ctx.fillRect(liftCar.x, liftCar.y, liftCar.width, liftCar.height);
+    }
+  });
 }
 
 function drawObstacles() {
@@ -802,6 +1226,8 @@ function gameLoop() {
       // Draw
       drawBackground();
       drawSlope();
+      drawLiftCable();
+      drawLiftCars();
       drawObstacles();
       drawFinishLine();
       drawPlayer();
@@ -810,6 +1236,8 @@ function gameLoop() {
       // Draw final frame
       drawBackground();
       drawSlope();
+      drawLiftCable();
+      drawLiftCars();
       drawObstacles();
       drawFinishLine();
       drawPlayer();
@@ -820,7 +1248,7 @@ function gameLoop() {
         ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#FF0000";
-        ctx.font = "bold 22px Arial";
+        ctx.font = "bold 18px Arial";
         ctx.textAlign = "center";
         // Display stored game over message
         if (gameState.gameOverMessage) {
@@ -831,7 +1259,7 @@ function gameLoop() {
           );
         }
         ctx.fillStyle = "#FFFFFF";
-        ctx.font = "18px Arial";
+        ctx.font = "14px Arial";
         ctx.fillText(
           "Kliknutím reštartuješ",
           canvas.width / 2,
@@ -859,11 +1287,27 @@ function gameLoop() {
       if (opacity <= 0) {
         startMessageState.show = false;
       } else {
-        // Draw the message
+        const midY = canvas.height / 2;
+
+        // Draw semi-transparent rectangles highlighting clickable areas
+        ctx.save();
+        ctx.globalAlpha = opacity * 0.6; // Less transparent
+
+        // Top half - jump area (red-ish color)
+        ctx.fillStyle = "#CC0000";
+        ctx.fillRect(0, 0, canvas.width, midY);
+
+        // Bottom half - crouch area (black-ish color)
+        ctx.fillStyle = "#333333";
+        ctx.fillRect(0, midY, canvas.width, midY);
+
+        ctx.restore();
+
+        // Draw the message split into 2 lines
         ctx.save();
         ctx.globalAlpha = opacity;
         ctx.fillStyle = "#FFFFFF";
-        ctx.font = "bold 48px Arial";
+        ctx.font = "bold 38px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         // Add text shadow effect
@@ -871,11 +1315,21 @@ function gameLoop() {
         ctx.shadowBlur = 6;
         ctx.shadowOffsetX = 3;
         ctx.shadowOffsetY = 3;
+
+        // First line: "Klikni hore = skok"
         ctx.fillText(
-          "Kliknutím skočíš 💋",
+          "Klikni hore = skok",
           canvas.width / 2,
-          canvas.height / 2
+          canvas.height / 2 - 70
         );
+
+        // Second line: "Klikni dole = drep 💋"
+        ctx.fillText(
+          "Klikni dole = drep 💋",
+          canvas.width / 2,
+          canvas.height / 2 + 70
+        );
+
         ctx.restore();
       }
     }
@@ -895,10 +1349,12 @@ function restartGame() {
   gameState.rewardScreenShown = false;
   gameState.health = 3; // Reset health to 3
   const groundOffset = 64; // Same offset as in updatePlayer (increased by 20px)
+  player.height = player.normalHeight; // Reset to normal height
   player.groundY = getGroundY(player.x) - player.height + groundOffset;
   player.y = player.groundY;
   player.velocityY = 0;
   player.isJumping = false;
+  player.isCrouching = false; // Reset crouching state
   player.hitAnimation.active = false; // Reset hit animation
   gameScroll = 0;
   backgroundScroll = 0;
@@ -910,6 +1366,7 @@ function restartGame() {
   rewardVideo.classList.add("hidden");
   rewardVideo.pause();
   rewardVideo.currentTime = 0;
+  initLiftCars(); // Must be called before initObstacles() to prevent overlap
   initObstacles();
   // Show start message again
   showStartMessage();
@@ -1010,6 +1467,7 @@ function startGame() {
     resizeCanvas();
 
     // Initialize game
+    initLiftCars(); // Must be called before initObstacles() to prevent overlap
     initObstacles();
     initSnowflakes();
 
